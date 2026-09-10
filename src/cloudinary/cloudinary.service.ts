@@ -35,7 +35,6 @@ export class CloudinaryService {
           resolve(result);
         },
       );
-
       uploadStream.end(file.buffer);
     });
   }

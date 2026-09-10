@@ -20,6 +20,7 @@ model User {
   password String
   created_at DateTime @default(now())
   posts Posts[]
+  likes Like[]
 }
 
 model Posts{
@@ -29,4 +30,16 @@ model Posts{
   imageHash String   @unique
   createdAt DateTime @default(now())
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  likes Like[]
+}
+
+model Like{
+  id Int @id @default(autoincrement())
+  userId Int
+  postId Int
+  created_at DateTime @default(now())
+
+  user User @relation(fields:[userId],references:[id], onDelete:Cascade)
+post Posts @relation(fields: [postId], references: [id], onDelete: Cascade)
+  @@unique([userId,postId])
 }
