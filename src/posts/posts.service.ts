@@ -51,6 +51,9 @@ export class PostsService {
   }
 
   async getPosts(page: number, limit: number, userId: number) {
+    if (!page || !limit) {
+      throw new BadRequestException('Queries are missing');
+    }
     const totalPosts = await this.prisma.posts.count();
     const skip = (page - 1) * limit;
     const res = await this.prisma.posts.findMany({

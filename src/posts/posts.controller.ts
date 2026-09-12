@@ -23,6 +23,12 @@ export class PostsController {
   constructor(private postService: PostsService) {}
 
   @Post('upload')
+  @Throttle({
+    default:{
+      limit:4,
+      ttl:60000
+    }
+  })
   @UseInterceptors(
     FileInterceptor('image', {
       limits: {
