@@ -1,114 +1,404 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Instagram Backend
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Backend API for an **Instagram-style social media application** built with NestJS, TypeScript, PostgreSQL, and Prisma.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+The backend provides authentication, posts, likes, profiles, pagination, image uploads, duplicate detection, rate limiting, and secure token management for the Flutter mobile application.
 
-## Description
+---
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+## 🚀 Features
 
-## Project setup
+* 🔐 JWT authentication
+* 🔄 Access and refresh token authentication
+* 📱 Mobile-specific API endpoints
+* 👤 User registration and login
+* 🖼️ Image post uploads
+* ☁️ Cloudinary image storage
+* ❤️ Post likes
+* 👤 User profiles
+* 📄 Paginated feeds
+* ♾️ Infinite scrolling support
+* 🔍 SHA-256 duplicate image detection
+* 🛡️ Rate limiting / throttling
+* ⚠️ Structured HTTP error handling
+* 🗄️ PostgreSQL database with Prisma ORM
+* 🚀 Deployed backend on Render
 
-```bash
-$ npm install
+---
+
+## 🏗️ Architecture
+
+
+Flutter Mobile App
+        │
+        ▼
+ NestJS REST API
+        │
+ ┌──────┼───────────────┐
+ │      │               │
+Auth  Controllers     Services
+ │      │               │
+ └──────┼───────────────┘
+        │
+      Prisma
+        │
+        ▼
+   PostgreSQL
+
+External Services
+├── Cloudinary
+└── Render
+
+
+The backend follows a modular structure where authentication, users, posts, likes, and other responsibilities are separated into their respective areas.
+
+---
+
+## 📱 Mobile API
+
+The backend provides dedicated mobile API routes using the `/mobile` prefix.
+
+Authentication routes include:
+
+
+/auth/register
+/auth/login
+/auth/refresh
+
+
+Mobile-specific operations are exposed through routes under:
+
+
+/mobile/...
+
+
+This keeps the API structure organized around the requirements of the Flutter application.
+
+---
+
+## 🔐 Authentication
+
+The application uses **JWT access and refresh tokens**.
+
+### Token flow
+
+Login / Register
+       ↓
+Backend validates user
+       ↓
+Access Token + Refresh Token
+       ↓
+Client securely stores tokens
+       ↓
+Access Token used for requests
+       ↓
+Access Token expires
+       ↓
+Refresh Token sent to /auth/refresh
+       ↓
+Backend validates refresh token
+       ↓
+New Access Token
+
+
+The Flutter application stores authentication tokens securely and uses the refresh-token flow when the access token expires.
+
+### Token lifetime
+
+* Access token: **5 minutes**
+* Refresh token: **7 days**
+
+---
+
+## 🖼️ Post System
+
+Authenticated users can create image posts.
+
+The backend handles:
+
+* Image upload
+* Post creation
+* Post retrieval
+* User-specific posts
+* Paginated feeds
+* Like information
+* Cloudinary image storage
+
+Example post data contains information such as:
+
+
+{
+  "id": 1,
+  "userId": 6,
+  "name": "User",
+  "postUrl": "...",
+  "likes": 10,
+  "isLiked": true
+}
+
+
+---
+
+## 🔍 Duplicate Image Detection
+
+The backend uses **SHA-256 hashing** to prevent duplicate image uploads.
+
+
+Image Upload
+     ↓
+Generate SHA-256 hash
+     ↓
+Check imageHash in database
+     ↓
+Already exists?
+   ↙        ↘
+ YES        NO
+  ↓          ↓
+409       Continue
+Conflict    Upload
+
+
+The image hash is stored with the post.
+
+If another upload contains the same image, the backend returns a `409 Conflict` instead of creating another post.
+
+---
+
+## ☁️ Cloudinary
+
+Uploaded post images are stored using **Cloudinary**.
+
+
+Flutter App
+    ↓
+NestJS API
+    ↓
+Validate Image
+    ↓
+Generate SHA-256 Hash
+    ↓
+Check Duplicate
+    ↓
+Cloudinary
+    ↓
+Store Image URL
+    ↓
+PostgreSQL
+
+The backend uses Cloudinary for media storage rather than storing image files directly in PostgreSQL.
+
+---
+
+## ❤️ Like System
+
+Users can like posts.
+
+Each like is associated with:
+
+
+userId
+postId
+
+
+The database uses a composite unique constraint to prevent duplicate likes:
+
+
+@@unique([userId, postId])
+
+
+The backend also checks whether the user has already liked a post before creating a new like.
+
+If a duplicate like is attempted, the API returns:
+
+
+409 Conflict
+
+
+This provides protection both at the application level and database level.
+
+---
+
+## 📄 Pagination & Infinite Scrolling
+
+The feed supports paginated requests so the application does not load every post at once.
+
+Example:
+
+
+/mobile/posts?page=1&limit=5
+
+
+The Flutter application uses these paginated responses to implement **infinite scrolling**.
+
+
+Load first page
+      ↓
+User scrolls
+      ↓
+Request next page
+      ↓
+Append posts
+      ↓
+Continue until all posts are loaded
+
+
+---
+
+## 🛡️ Rate Limiting
+
+The API uses request throttling to help prevent excessive requests.
+
+The throttling configuration uses a time-based request limit to protect the backend from abusive or unexpectedly high request rates.
+
+---
+
+## ⚠️ Error Handling
+
+The backend uses standard HTTP status codes for API errors.
+
+| Status | Meaning               |
+| ------ | --------------------- |
+| `400`  | Bad Request           |
+| `401`  | Unauthorized          |
+| `404`  | Resource Not Found    |
+| `409`  | Conflict / Duplicate  |
+| `429`  | Too Many Requests     |
+| `500`  | Internal Server Error |
+
+The Flutter application maps these responses into structured application exceptions so the UI can display appropriate error states.
+
+---
+
+## 🗄️ Database
+
+The project uses:
+
+* **PostgreSQL**
+* **Prisma ORM**
+
+The database manages relationships between users, posts, and likes.
+
+The like relationship uses a composite uniqueness constraint:
+
+```prisma
+@@unique([userId, postId])
 ```
 
-## Compile and run the project
+This ensures that a user cannot have multiple like records for the same post.
 
-```bash
-# development
-$ npm run start
+---
 
-# watch mode
-$ npm run start:dev
+## 🛠️ Tech Stack
 
-# production mode
-$ npm run start:prod
-```
+| Technology | Purpose                     |
+| ---------- | --------------------------- |
+| NestJS     | Backend framework           |
+| TypeScript | Programming language        |
+| Prisma     | ORM                         |
+| PostgreSQL | Database                    |
+| JWT        | Authentication              |
+| Cloudinary | Image storage               |
+| Render     | Backend deployment          |
+| REST API   | Client-server communication |
 
-## Run tests
+---
 
-```bash
-# unit tests
-$ npm run test
+## 📁 Project Structure
 
-# e2e tests
-$ npm run test:e2e
 
-# test coverage
-$ npm run test:cov
-```
+src/
+├── auth/
+├── users/
+├── posts/
+├── likes/
+└── ...
 
-## Deployment
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+The backend is organized around application features such as authentication, users, posts, and likes.
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+---
 
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
-```
+## ⚙️ Getting Started
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+### 1. Clone the repository
 
-## Observability
 
-In production applications, observability is essential for understanding how your system behaves, detecting issues early, and maintaining reliable performance.
+git clone https://github.com/Prakash777-code/InstagramBackend-.git
+cd InstagramBackend-
 
-[NestJS Observe](https://observe.nestjs.com) automatically instruments your NestJS application, giving you deep visibility into your system with minimal setup:
 
-- **Distributed tracing:** Follow requests across services and understand how they flow through your system.
-- **Waterfall analysis:** Visualize request execution and identify slow operations, bottlenecks, and unexpected delays.
-- **Performance analysis:** Analyze application performance in real time and quickly pinpoint areas that need optimization.
-- **Metrics:** Track key application and infrastructure metrics to understand system health and performance trends.
-- **Logging:** Centralize and correlate logs with traces and other telemetry to make debugging easier.
-- **Error tracking:** Detect errors quickly and investigate their root causes with the surrounding context.
-- **SLA monitoring:** Track service-level objectives and identify when your application is approaching or exceeding defined thresholds.
-- **Alarms and alerts:** Set up alerts for critical errors, performance degradation, SLA violations, and other anomalies so your team can react quickly.
+### 2. Install dependencies
 
-## Resources
 
-Check out a few resources that may come in handy when working with NestJS:
+npm install
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Auto-instrument your application with [NestJS Observer](https://observer.nestjs.com). Distributed tracing, metrics, and logging made easy. Error tracking and performance monitoring for your NestJS applications.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
 
-## Support
+### 3. Configure environment variables
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+Create a `.env` file containing the required database, JWT, and Cloudinary configuration.
 
-## Stay in touch
+Example:
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
 
-## License
+DATABASE_URL=your_database_url
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+JWT_ACCESS_SECRET=your_access_secret
+JWT_REFRESH_SECRET=your_refresh_secret
+
+CLOUDINARY_CLOUD_NAME=your_cloud_name
+CLOUDINARY_API_KEY=your_api_key
+CLOUDINARY_API_SECRET=your_api_secret
+
+
+### 4. Generate Prisma Client
+
+
+npx prisma generate
+
+
+### 5. Run the development server
+
+
+npm run start:dev
+
+
+---
+
+## 🌐 Live Backend
+
+The backend is deployed on Render.
+
+https://instagrambackend-aeed.onrender.com
+
+---
+
+## 🔗 Related Repository
+
+### Flutter Mobile App
+
+https://github.com/Prakash777-code/InstagramApp
+
+---
+
+## 📖 What I Learned
+
+Building this backend gave me practical experience with:
+
+* Designing REST APIs using NestJS
+* JWT authentication and refresh-token flows
+* Secure token handling
+* Prisma and PostgreSQL relationships
+* Database-level uniqueness constraints
+* Image uploads with Cloudinary
+* SHA-256 duplicate detection
+* Pagination and infinite scrolling APIs
+* Rate limiting
+* Structured API error handling
+* Connecting a Flutter application to a deployed backend
+* Deploying a NestJS API using Render
+
+---
+
+## 📄 License
+
+This project was built for learning and portfolio purposes.
