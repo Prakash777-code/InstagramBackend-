@@ -10,6 +10,7 @@ import * as bcrypt from 'bcrypt';
 import { LoginDto } from './dtos/login.dto';
 import { jwtPayload } from './interfaces/jwtPayload';
 import { JwtService } from '@nestjs/jwt';
+import { checkPassword } from './helper/password.helper';
 
 @Injectable()
 export class AuthService {
@@ -36,7 +37,10 @@ export class AuthService {
     if (existsName) {
       throw new BadRequestException('Username already exists');
     }
-
+    const passwordError = checkPassword(password);
+    if (passwordError != null) {
+      throw new BadRequestException(passwordError);
+    }
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = await this.prisma.user.create({
       data: {
