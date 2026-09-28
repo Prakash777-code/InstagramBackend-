@@ -50,6 +50,7 @@ export class AuthService {
         name,
         email,
         password: hashedPassword,
+        passwordVersion: 2,
       },
     });
     return {

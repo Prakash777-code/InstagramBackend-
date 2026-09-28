@@ -3,9 +3,7 @@ import { RegisterDto } from './dtos/register.dto';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dtos/login.dto';
 import { Throttle } from '@nestjs/throttler';
-import type { AuthRequest } from '../auth/interfaces/authRequest';
 import { UpdatePassword } from './dtos/update.password.dto';
-import { AuthGuard } from '@nestjs/passport';
 
 @Controller('auth')
 export class AuthController {
