@@ -127,6 +127,9 @@ export class PostsService {
             postUrl: true,
             createdAt: true,
           },
+          orderBy: {
+            createdAt: 'desc',
+          },
         },
       },
     });
@@ -172,6 +175,10 @@ export class PostsService {
       where: {
         id: postId,
       },
+      select: {
+        userId: true,
+        postUrl: true,
+      },
     });
     if (!isPost) {
       throw new NotFoundException('Post not found');
@@ -193,6 +200,25 @@ export class PostsService {
         postId: postId,
       },
     });
+    const userDetails = await this.prisma.user.findUnique({
+      where: {
+        id: userId,
+      },
+    });
+    if (!userDetails) {
+      throw new NotFoundException('User not found');
+    }
+    if (userId !== isPost.userId) {
+      await this.prisma.notification.create({
+        data: {
+          postId: postId,
+          imageUrl: isPost.postUrl,
+          userId: isPost.userId,
+          userName: userDetails.name,
+        },
+      });
+    }
+    await this.cacheManager.del(`notification:${isPost.userId}`);
     const likes = await this.prisma.like.count({
       where: {
         postId: postId,
@@ -232,9 +258,48 @@ export class PostsService {
         },
       },
     });
+    const postOwner = await this.prisma.posts.findUnique({
+      where: {
+        id: postId,
+      },
+    });
+    if (!postOwner) {
+      throw new NotFoundException('Owner not found');
+    }
+    await this.prisma.notification.deleteMany({
+      where: {
+        userId: postOwner.userId,
+        postId: postId,
+      },
+    });
+    await this.cacheManager.del(`notification:${postOwner.userId}`);
     return {
       success: true,
       message: 'Post unliked',
+    };
+  }
+
+  async getUserNotification(userId: number) {
+    const key = `notification:${userId}`;
+    const cachedData = await this.cacheManager.get(key);
+    if (cachedData) {
+      return {
+        source: 'Cache',
+        data: cachedData,
+      };
+    }
+    const res = await this.prisma.notification.findMany({
+      where: {
+        userId: userId,
+      },
+      orderBy: {
+        created_at: 'desc',
+      },
+    });
+    await this.cacheManager.set(key, res);
+    return {
+      source: 'Database',
+      data: res,
     };
   }
 }

@@ -24,10 +24,10 @@ export class PostsController {
 
   @Post('upload')
   @Throttle({
-    default:{
-      limit:4,
-      ttl:60000
-    }
+    default: {
+      limit: 4,
+      ttl: 60000,
+    },
   })
   @UseInterceptors(
     FileInterceptor('image', {
@@ -98,5 +98,11 @@ export class PostsController {
     @Param('id', ParseIntPipe) id: number,
   ) {
     return this.postService.unlikePost(request.user.userId, id);
+  }
+
+  @Get('notification')
+  @SkipThrottle()
+  async getUserNotification(@Req() request: AuthRequest) {
+    return this.postService.getUserNotification(request.user.userId);
   }
 }
