@@ -102,7 +102,15 @@ export class PostsController {
 
   @Get('notification')
   @SkipThrottle()
-  async getUserNotification(@Req() request: AuthRequest) {
-    return this.postService.getUserNotification(request.user.userId);
+  async getUserNotification(
+    @Query('page') page: string,
+    @Query('limit') limit: string,
+    @Req() request: AuthRequest,
+  ) {
+    return this.postService.getUserNotification(
+      request.user.userId,
+      Number(page),
+      Number(limit),
+    );
   }
 }

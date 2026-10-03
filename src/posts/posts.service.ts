@@ -218,7 +218,6 @@ export class PostsService {
         },
       });
     }
-    await this.cacheManager.del(`notification:${isPost.userId}`);
     const likes = await this.prisma.like.count({
       where: {
         postId: postId,
@@ -272,23 +271,23 @@ export class PostsService {
         postId: postId,
       },
     });
-    await this.cacheManager.del(`notification:${postOwner.userId}`);
     return {
       success: true,
       message: 'Post unliked',
     };
   }
 
-  async getUserNotification(userId: number) {
-    const key = `notification:${userId}`;
-    const cachedData = await this.cacheManager.get(key);
-    if (cachedData) {
-      return {
-        source: 'Cache',
-        data: cachedData,
-      };
+  async getUserNotification(userId: number, page: number, limit: number) {
+    if (userId < 1) {
+      throw new NotFoundException('User not found ');
     }
+    if (!page || !limit || page < 1 || limit < 1) {
+      throw new BadRequestException('Page and limit must be positive integers');
+    }
+    const skip = (page - 1) * limit;
     const res = await this.prisma.notification.findMany({
+      skip: skip,
+      take: limit,
       where: {
         userId: userId,
       },
@@ -296,10 +295,14 @@ export class PostsService {
         created_at: 'desc',
       },
     });
-    await this.cacheManager.set(key, res);
+    const totalNotifications = await this.prisma.notification.count({
+      where: {
+        userId: userId,
+      },
+    });
     return {
-      source: 'Database',
       data: res,
+      totalNotifications: totalNotifications,
     };
   }
 }
