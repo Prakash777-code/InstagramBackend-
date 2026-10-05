@@ -35,18 +35,19 @@ export class PostsService {
       throw new ConflictException('This post has been already uploaded');
     }
     const res = await this.cloudinaryService.uploadWallpaper(image);
-    await this.prisma.posts.create({
+    const post = await this.prisma.posts.create({
       data: {
         imageHash: imageHash,
         userId: userId,
         postUrl: res.secure_url,
       },
     });
+    console.log(post);
     await this.cacheManager.del(`userPosts:${userId}`);
     await this.cacheManager.del(`userProfile:${userId}`);
     return {
       message: 'Post uploaded',
-      postUrl: res.secure_url,
+      post: post,
     };
   }
 
@@ -209,7 +210,7 @@ export class PostsService {
       throw new NotFoundException('User not found');
     }
     if (userId !== isPost.userId) {
-      await this.prisma.notification.create({
+      const res = await this.prisma.notification.create({
         data: {
           postId: postId,
           imageUrl: isPost.postUrl,
@@ -217,6 +218,7 @@ export class PostsService {
           userName: userDetails.name,
         },
       });
+      console.log(res);
     }
     const likes = await this.prisma.like.count({
       where: {
@@ -295,6 +297,15 @@ export class PostsService {
         created_at: 'desc',
       },
     });
+    await this.prisma.notification.updateMany({
+      where: {
+        userId: userId,
+        seen: false,
+      },
+      data: {
+        seen: true,
+      },
+    });
     const totalNotifications = await this.prisma.notification.count({
       where: {
         userId: userId,
@@ -303,6 +314,18 @@ export class PostsService {
     return {
       data: res,
       totalNotifications: totalNotifications,
+    };
+  }
+
+  async hasUnreadNotification(userId: number) {
+    const unread = await this.prisma.notification.count({
+      where: {
+        userId: userId,
+        seen: false,
+      },
+    });
+    return {
+      unread: unread > 0,
     };
   }
 }

@@ -113,4 +113,9 @@ export class PostsController {
       Number(limit),
     );
   }
+
+  @Get('unread')
+  async getUnreadNotificationCount(@Req() request: AuthRequest) {
+    return this.postService.hasUnreadNotification(request.user.userId);
+  }
 }
