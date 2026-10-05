@@ -115,6 +115,7 @@ export class PostsController {
   }
 
   @Get('unread')
+  @SkipThrottle()
   async getUnreadNotificationCount(@Req() request: AuthRequest) {
     return this.postService.hasUnreadNotification(request.user.userId);
   }
