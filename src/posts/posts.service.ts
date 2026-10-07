@@ -20,6 +20,9 @@ export class PostsService {
   ) {}
 
   async uploadPost(image: Express.Multer.File, userId: number) {
+    console.log('========== UPLOAD ==========');
+    console.log('UPLOAD USER ID:', userId);
+
     if (!image) {
       throw new BadRequestException('File is required');
     }
@@ -35,19 +38,19 @@ export class PostsService {
       throw new ConflictException('This post has been already uploaded');
     }
     const res = await this.cloudinaryService.uploadWallpaper(image);
-    const post = await this.prisma.posts.create({
+    await this.prisma.posts.create({
       data: {
         imageHash: imageHash,
         userId: userId,
         postUrl: res.secure_url,
       },
     });
-    console.log(post);
+    await this.cacheManager.del(`allPosts`);
     await this.cacheManager.del(`userPosts:${userId}`);
     await this.cacheManager.del(`userProfile:${userId}`);
     return {
       message: 'Post uploaded',
-      post: post,
+      postUrl: res.secure_url,
     };
   }
 
