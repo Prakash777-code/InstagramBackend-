@@ -10,19 +10,20 @@ import { CloudinaryService } from '../cloudinary/cloudinary.service';
 import { createHash } from 'crypto';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import type { Cache } from 'cache-manager';
+import { FirebaseService } from '../services/firebase.service';
+import { Helper } from './utils/helper';
 
 @Injectable()
 export class PostsService {
   constructor(
     private prisma: PrismaService,
     private cloudinaryService: CloudinaryService,
+    private firebaseService: FirebaseService,
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
+    private helper: Helper,
   ) {}
 
   async uploadPost(image: Express.Multer.File, userId: number) {
-    console.log('========== UPLOAD ==========');
-    console.log('UPLOAD USER ID:', userId);
-
     if (!image) {
       throw new BadRequestException('File is required');
     }
@@ -221,6 +222,29 @@ export class PostsService {
           userName: userDetails.name,
         },
       });
+      console.log('SEDNING NOTIFOCATION');
+      const tokens = await this.prisma.deviceToken.findMany({
+        where: {
+          userId: isPost.userId,
+        },
+        select: {
+          fcmToken: true,
+        },
+      });
+      const deviceTokens = tokens.map((item) => item.fcmToken);
+      if (deviceTokens.length > 0) {
+        const time = new Date().toLocaleTimeString('en-IN', {
+          hour: 'numeric',
+          minute: '2-digit',
+        });
+        const formattedTime = this.helper.getTimeAgo(new Date);
+        const result = await this.firebaseService.sendMultipleNotifications(
+          deviceTokens,
+          'New Like',
+          `${userDetails.name} liked your post at ${time}`,
+        );
+        console.log('NOTIFICATION SENDED', result);
+      }
       console.log(res);
     }
     const likes = await this.prisma.like.count({
@@ -331,4 +355,28 @@ export class PostsService {
       unread: unread > 0,
     };
   }
+
+  async saveFcmToken(userId: number, fcmToken: string) {
+    if (!fcmToken) {
+      throw new BadRequestException('FCM is missing');
+    }
+    await this.prisma.deviceToken.upsert({
+      where: {
+        fcmToken,
+      },
+      update: {
+        userId,
+      },
+      create: {
+        fcmToken,
+        userId,
+      },
+    });
+    return {
+      message: 'FCM saved',
+    };
+  }
+}
+function DateFormat(arg0: string) {
+  throw new Error('Function not implemented.');
 }

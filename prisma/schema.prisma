@@ -22,7 +22,8 @@ model User {
   created_at DateTime @default(now())
   posts Posts[]
   likes Like[]
-   notification Notification[]
+  notification Notification[]
+  deviceTokens deviceToken[]
 }
 
 model Posts{
@@ -59,3 +60,13 @@ model Notification {
   user User @relation(fields:[userId],references:[id], onDelete:Cascade)
   post Posts @relation(fields: [postId], references: [id], onDelete: Cascade)
 }
+
+model deviceToken {
+  id Int @id @default(autoincrement())
+  userId Int
+  fcmToken String @unique
+  created_at DateTime @default(now())
+  user User @relation(fields:[userId],references:[id], onDelete:Cascade)
+}
+
+

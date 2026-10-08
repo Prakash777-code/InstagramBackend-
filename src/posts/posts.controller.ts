@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   Delete,
   Get,
@@ -118,5 +119,13 @@ export class PostsController {
   @SkipThrottle()
   async getUnreadNotificationCount(@Req() request: AuthRequest) {
     return this.postService.hasUnreadNotification(request.user.userId);
+  }
+
+  @Post('notifications/fcm-token')
+  async saveFcmToken(
+    @Req() request: AuthRequest,
+    @Body('fcmToken') fcmToken: string,
+  ) {
+    return this.postService.saveFcmToken(request.user.userId, fcmToken);
   }
 }
