@@ -6,8 +6,9 @@ import { getMessaging } from 'firebase-admin/messaging';
 export class FirebaseService {
   constructor() {
     if (!getApps().length) {
+      const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT!);
       initializeApp({
-        credential: cert(require('../../firebase-service-account.json')),
+        credential: cert(serviceAccount),
       });
     }
   }
