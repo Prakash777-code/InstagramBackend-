@@ -128,4 +128,12 @@ export class PostsController {
   ) {
     return this.postService.saveFcmToken(request.user.userId, fcmToken);
   }
+
+  @Delete('notification/fcm')
+  async deleteFcmToken(
+    @Req() request: AuthRequest,
+    @Body('fcmToken') fcmToken: string,
+  ) {
+    return this.postService.deleteFcmToken(request.user.userId, fcmToken);
+  }
 }

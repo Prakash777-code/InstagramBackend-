@@ -56,6 +56,9 @@ export class PostsService {
   }
 
   async getPosts(page: number, limit: number, userId: number) {
+    if (page < 1 || limit < 1) {
+      throw new BadRequestException('Page and limit must me greater than 0');
+    }
     if (!page || !limit) {
       throw new BadRequestException('Queries are missing');
     }
@@ -93,7 +96,6 @@ export class PostsService {
             },
           },
         });
-
         return {
           id: post.id,
           userId: post.userId,
@@ -377,7 +379,19 @@ export class PostsService {
       message: 'FCM saved',
     };
   }
-}
-function DateFormat(arg0: string) {
-  throw new Error('Function not implemented.');
+
+  async deleteFcmToken(userId: number, fcmToken: string) {
+    if (!fcmToken) {
+      throw new BadRequestException('FCM token is missing');
+    }
+    await this.prisma.deviceToken.delete({
+      where: {
+        userId: userId,
+        fcmToken: fcmToken,
+      },
+    });
+    return {
+      message: 'FCM removed',
+    };
+  }
 }

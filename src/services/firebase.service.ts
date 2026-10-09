@@ -5,7 +5,9 @@ import { getMessaging } from 'firebase-admin/messaging';
 @Injectable()
 export class FirebaseService {
   constructor() {
+    console.log('FirebaseService constructor called');
     if (!getApps().length) {
+      console.log("From env",process.env.FIREBASE_SERVICE_ACCOUNT?.substring(0, 30));
       const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT!);
       initializeApp({
         credential: cert(serviceAccount),
