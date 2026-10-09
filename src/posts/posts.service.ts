@@ -234,10 +234,11 @@ export class PostsService {
       const deviceTokens = tokens.map((item) => item.fcmToken);
       if (deviceTokens.length > 0) {
         const time = new Date().toLocaleTimeString('en-IN', {
+          timeZone: 'Asia/Kolkata',
           hour: 'numeric',
           minute: '2-digit',
         });
-        const formattedTime = this.helper.getTimeAgo(new Date);
+        const formattedTime = this.helper.getTimeAgo(new Date());
         const result = await this.firebaseService.sendMultipleNotifications(
           deviceTokens,
           'New Like',
