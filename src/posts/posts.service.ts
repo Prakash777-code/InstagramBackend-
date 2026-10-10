@@ -46,6 +46,7 @@ export class PostsService {
         postUrl: res.secure_url,
       },
     });
+    await this.invalidatePostsCache();
     await this.cacheManager.del(`allPosts`);
     await this.cacheManager.del(`userPosts:${userId}`);
     await this.cacheManager.del(`userProfile:${userId}`);
@@ -62,7 +63,18 @@ export class PostsService {
     if (!page || !limit) {
       throw new BadRequestException('Queries are missing');
     }
+    const version =
+      (await this.cacheManager.get<number>('all-posts-version')) ?? 1;
+    const key = `all-posts:v${version}:page:${page}:limit:${limit}:user:${userId}`;
+    const cachedData = await this.cacheManager.get(key);
     const totalPosts = await this.prisma.posts.count();
+    if (cachedData) {
+      return {
+        source: 'Cache',
+        data: cachedData,
+        totalPosts: totalPosts,
+      };
+    }
     const skip = (page - 1) * limit;
     const res = await this.prisma.posts.findMany({
       skip: skip,
@@ -106,7 +118,9 @@ export class PostsService {
         };
       }),
     );
+    await this.cacheManager.set(key, posts, 30 * 60 * 1000);
     return {
+      source: 'Database',
       data: posts,
       totalPosts: totalPosts,
     };
@@ -172,6 +186,7 @@ export class PostsService {
     });
     await this.cacheManager.del(`userPosts:${userId}`);
     await this.cacheManager.del(`userProfile:${userId}`);
+    await this.invalidatePostsCache();
     return {
       message: 'Post deleted',
     };
@@ -225,6 +240,7 @@ export class PostsService {
         },
       });
       console.log('SEDNING NOTIFOCATION');
+      await this.invalidateNotificationCache();
       const tokens = await this.prisma.deviceToken.findMany({
         where: {
           userId: isPost.userId,
@@ -303,6 +319,7 @@ export class PostsService {
         postId: postId,
       },
     });
+    await this.invalidateNotificationCache();
     return {
       success: true,
       message: 'Post unliked',
@@ -315,6 +332,31 @@ export class PostsService {
     }
     if (!page || !limit || page < 1 || limit < 1) {
       throw new BadRequestException('Page and limit must be positive integers');
+    }
+    const totalNotifications = await this.prisma.notification.count({
+      where: {
+        userId: userId,
+      },
+    });
+    const version =
+      (await this.cacheManager.get<number>('notification-version')) ?? 1;
+    const key = `notification:userId:${userId}:v${version}:page:${page}:limit:${limit}`;
+    const cachedData = await this.cacheManager.get(key);
+    if (cachedData) {
+      await this.prisma.notification.updateMany({
+        where: {
+          userId: userId,
+          seen: false,
+        },
+        data: {
+          seen: true,
+        },
+      });
+      return {
+        source: 'Cache',
+        data: cachedData,
+        totalNotifications: totalNotifications,
+      };
     }
     const skip = (page - 1) * limit;
     const res = await this.prisma.notification.findMany({
@@ -336,12 +378,9 @@ export class PostsService {
         seen: true,
       },
     });
-    const totalNotifications = await this.prisma.notification.count({
-      where: {
-        userId: userId,
-      },
-    });
+    await this.cacheManager.set(key, res);
     return {
+      source: 'Database',
       data: res,
       totalNotifications: totalNotifications,
     };
@@ -393,5 +432,17 @@ export class PostsService {
     return {
       message: 'FCM removed',
     };
+  }
+
+  async invalidatePostsCache() {
+    const version =
+      (await this.cacheManager.get<number>('all-posts-version')) ?? 1;
+    await this.cacheManager.set('all-posts-version', version + 1);
+  }
+
+  async invalidateNotificationCache() {
+    const version =
+      (await this.cacheManager.get<number>('notification-version')) ?? 1;
+    await this.cacheManager.set('notification-version', version + 1);
   }
 }
