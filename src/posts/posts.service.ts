@@ -266,6 +266,9 @@ export class PostsService {
       where: {
         id: postId,
       },
+      select: {
+        postUrl: true,
+      },
     });
     if (!isPost) {
       throw new NotFoundException('Post not found');
@@ -297,12 +300,24 @@ export class PostsService {
     if (!postOwner) {
       throw new NotFoundException('Owner not found');
     }
-    await this.prisma.notification.deleteMany({
+    const userDetails = await this.prisma.user.findUnique({
       where: {
-        userId: postOwner.userId,
-        postId: postId,
+        id: userId,
       },
     });
+    if (!userDetails) {
+      throw new BadRequestException('User not found');
+    }
+    if (userId != postOwner.userId) {
+      await this.prisma.notification.deleteMany({
+        where: {
+          userId: postOwner.userId,
+          postId: postId,
+          userName: userDetails.name,
+          imageUrl: isPost.postUrl,
+        },
+      });
+    }
     return {
       success: true,
       message: 'Post unliked',
