@@ -11,7 +11,7 @@ export class CloudinaryService {
     });
   }
 
-  async uploadWallpaper(
+  async uploadPost(
     file: Express.Multer.File,
   ): Promise<UploadApiResponse> {
     return new Promise((resolve, reject) => {

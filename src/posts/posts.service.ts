@@ -38,7 +38,7 @@ export class PostsService {
       console.log('Found existing posts', existingPost);
       throw new ConflictException('This post has been already uploaded');
     }
-    const res = await this.cloudinaryService.uploadWallpaper(image);
+    const res = await this.cloudinaryService.uploadPost(image);
     await this.prisma.posts.create({
       data: {
         imageHash: imageHash,
