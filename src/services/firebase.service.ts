@@ -7,7 +7,10 @@ export class FirebaseService {
   constructor() {
     console.log('FirebaseService constructor called');
     if (!getApps().length) {
-      console.log("From env",process.env.FIREBASE_SERVICE_ACCOUNT?.substring(0, 30));
+      console.log(
+        'From env',
+        process.env.FIREBASE_SERVICE_ACCOUNT?.substring(0, 30),
+      );
       const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT!);
       initializeApp({
         credential: cert(serviceAccount),
@@ -39,6 +42,13 @@ export class FirebaseService {
       notification: {
         title,
         body,
+      },
+      android: {
+        priority: 'high',
+        notification: {
+          channelId: 'high_importance_channel',
+          priority: 'max',
+        },
       },
     });
   }
