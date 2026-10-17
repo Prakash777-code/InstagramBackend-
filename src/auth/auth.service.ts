@@ -13,7 +13,6 @@ import { jwtPayload } from './interfaces/jwtPayload';
 import { JwtService } from '@nestjs/jwt';
 import { checkPassword } from './helper/password.helper';
 import { UpdatePassword } from './dtos/update.password.dto';
-import { use } from 'passport';
 
 @Injectable()
 export class AuthService {
@@ -21,7 +20,9 @@ export class AuthService {
     private prisma: PrismaService,
     private readonly jwtService: JwtService,
   ) {}
+
   readonly CURRENT_PASSWORD_VERSION = 2;
+
   async register(registerDto: RegisterDto) {
     const { name, email, password } = registerDto;
     const exists = await this.prisma.user.findUnique({
@@ -77,11 +78,11 @@ export class AuthService {
     };
     const accessToken = await this.jwtService.signAsync(payload, {
       secret: process.env.JWT_SECRET,
-      expiresIn: '5m',
+      expiresIn: '30s',
     });
     const refreshToken = await this.jwtService.signAsync(payload, {
       secret: process.env.JWT_REFRESH_SECRET,
-      expiresIn: '7d',
+      expiresIn: '1m',
     });
     if (user.passwordVersion < this.CURRENT_PASSWORD_VERSION) {
       return {
@@ -125,7 +126,7 @@ export class AuthService {
       },
       {
         secret: process.env.JWT_SECRET,
-        expiresIn: '5m',
+        expiresIn: '30s',
       },
     );
     return {
