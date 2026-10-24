@@ -16,11 +16,15 @@ export class EmailService {
   }
 
   async sendOtp(email: string, otp: string) {
-    await this.transporter.sendMail({
-      from: process.env.SMTP_USER,
-      to: email,
-      subject: 'Password Reset OTP',
-      text: `Your password reset OTP is ${otp}. It expires in 5 minutes.`,
-    });
+    try {
+      await this.transporter.sendMail({
+        from: process.env.SMTP_USER,
+        to: email,
+        subject: 'Password Reset OTP',
+        text: `Your password reset OTP is ${otp}. It expires in 5 minutes.`,
+      });
+    } catch (e) {
+      console.log(e);
+    }
   }
 }
