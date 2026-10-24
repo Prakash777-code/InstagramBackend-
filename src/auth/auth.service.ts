@@ -192,6 +192,7 @@ export class AuthService {
   }
 
   async sendOtp(email: string) {
+    console.log('REACHED SEND OTP FUNCTION');
     if (!email) {
       throw new BadRequestException('Email is required to send OTP');
     }
@@ -201,15 +202,18 @@ export class AuthService {
       },
     });
     if (!user) {
+      console.log('USER NOT FOUND');
       return {
         message: 'If account exists, OTP has been sent',
       };
     }
+    console.log('USER FOUND ', user);
     await this.prisma.otp.deleteMany({
       where: {
         userId: user.id,
       },
     });
+    console.log('PREVIOUS OTP DELETED');
     const otp = randomInt(100000, 1000000).toString();
     const otpHash = await bcrypt.hash(otp, 10);
     await this.prisma.otp.create({
@@ -219,7 +223,10 @@ export class AuthService {
         expiresAt: new Date(Date.now() + 5 * 60 * 1000),
       },
     });
+    console.log('OTP SAVED');
+    console.log('SENDING OTP');
     await this.emailService.sendOtp(email, otp);
+    console.log('OTP sent');
     return {
       message: 'If account exists, OTP has been sent',
     };
