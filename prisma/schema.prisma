@@ -24,6 +24,7 @@ model User {
   likes Like[]
   notification Notification[]
   deviceTokens deviceToken[]
+  otp Otp []
 }
 
 model Posts{
@@ -66,6 +67,15 @@ model deviceToken {
   userId Int
   fcmToken String @unique
   created_at DateTime @default(now())
+  user User @relation(fields:[userId],references:[id], onDelete:Cascade)
+}
+
+model Otp {
+  id Int @id @default(autoincrement())
+  otpHash String 
+  userId Int 
+  expiresAt DateTime
+  createdAt DateTime @default(now())
   user User @relation(fields:[userId],references:[id], onDelete:Cascade)
 }
 

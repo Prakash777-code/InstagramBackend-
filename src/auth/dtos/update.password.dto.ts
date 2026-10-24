@@ -12,5 +12,5 @@ export class UpdatePassword {
 
   @IsString()
   @IsNotEmpty()
-  refreshToken!:string
+  passwordUpdateToken!:string
 }
