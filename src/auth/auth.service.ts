@@ -259,9 +259,6 @@ export class AuthService {
     if (!userOtpRecord) {
       throw new BadRequestException('Invalid OTP');
     }
-    if (!userOtpRecord) {
-      throw new BadRequestException('Invalid OTP');
-    }
     if (new Date() >= userOtpRecord.expiresAt) {
       throw new BadRequestException('OTP has been expired');
     }
