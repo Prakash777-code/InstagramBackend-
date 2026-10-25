@@ -80,6 +80,7 @@ export class AuthService {
     }
     const payload: jwtPayload = {
       userId: user.id,
+      sessionVersion: user.sessionVersion,
     };
     const accessToken = await this.jwtService.signAsync(payload, {
       secret: process.env.JWT_SECRET,
@@ -128,6 +129,9 @@ export class AuthService {
     }
     if (user.passwordVersion < this.CURRENT_PASSWORD_VERSION) {
       throw new ForbiddenException('Password change is required to continue');
+    }
+    if (user.sessionVersion != payload.sessionVersion) {
+      throw new UnauthorizedException('Session expired, login again');
     }
     const newAccessToken = await this.jwtService.signAsync(
       {
@@ -268,6 +272,7 @@ export class AuthService {
     }
     const payload: jwtPayload = {
       userId: user.id,
+      sessionVersion: user.sessionVersion,
     };
     const resetToken = await this.jwtService.signAsync(payload, {
       secret: process.env.JWT_RESET_SECRET,
@@ -309,11 +314,14 @@ export class AuthService {
     }
     const hashedPassword = await bcrypt.hash(newPassword, 10);
     await this.prisma.user.update({
-      data: {
-        password: hashedPassword,
-      },
       where: {
         id: user.id,
+      },
+      data: {
+        password: hashedPassword,
+        sessionVersion: {
+          increment: 1,
+        },
       },
     });
     return {
