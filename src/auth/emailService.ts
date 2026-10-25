@@ -1,9 +1,14 @@
+import { Brevo, BrevoClient } from '@getbrevo/brevo';
 import { BadRequestException, Injectable } from '@nestjs/common';
 import * as nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 
 @Injectable()
 export class EmailService {
   private transporter: nodemailer.Transporter;
+  private readonly brevo = new BrevoClient({
+    apiKey: process.env.BREVO_API_KEY!,
+  });
 
   constructor() {
     this.transporter = nodemailer.createTransport({
@@ -16,11 +21,19 @@ export class EmailService {
   }
 
   async sendOtp(email: string, otp: string) {
-    await this.transporter.sendMail({
-      from: process.env.SMTP_USER,
-      to: email,
-      subject: 'Password Reset OTP',
-      text: `Your password reset OTP is ${otp}. It expires in 5 minutes.`,
-    });
+    try {
+      await this.brevo.transactionalEmails.sendTransacEmail({
+        sender: {
+          name: 'Prakash',
+          email: 'prakaxkumar@gmail.com',
+        },
+        to: [{ email }],
+        subject: 'Password reset OTP',
+        textContent: `Your password reset OTP is ${otp}. It expires in 5 minutes.`,
+      });
+    } catch (error) {
+      console.error(error);
+      throw error;
+    }
   }
 }
