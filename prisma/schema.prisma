@@ -19,6 +19,7 @@ model User {
   email String @unique
   password String
   passwordVersion Int @default(1)
+  sessionVersion Int @default(1)
   created_at DateTime @default(now())
   posts Posts[]
   likes Like[]
