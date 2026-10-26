@@ -136,6 +136,7 @@ export class AuthService {
     const newAccessToken = await this.jwtService.signAsync(
       {
         userId: payload.userId,
+        sessionVersion: user.sessionVersion,
       },
       {
         secret: process.env.JWT_SECRET,
