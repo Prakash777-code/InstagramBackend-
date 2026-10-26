@@ -137,5 +137,11 @@ export class PostsController {
     return this.postService.deleteFcmToken(request.user.userId, fcmToken);
   }
 
-  
+  @Post('liked-ids')
+  async getLikedPostsIds(
+    @Req() req: AuthRequest,
+    @Body('postIds') postIds: number[],
+  ) {
+    return this.postService.getLikedPostsIds(req.user.userId, postIds);
+  }
 }

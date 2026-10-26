@@ -431,7 +431,22 @@ export class PostsService {
     };
   }
 
- 
+  async getLikedPostsIds(userId: number, postIds: number[]) {
+    const likedids = await this.prisma.like.findMany({
+      where: {
+        userId: userId,
+        postId: {
+          in: postIds.map((id) => id),
+        },
+      },
+      select: {
+        postId: true,
+      },
+    });
+    return {
+      likedids: likedids.map((id) => id.postId),
+    };
+  }
 
   async invalidatePostsCache() {
     const version =
