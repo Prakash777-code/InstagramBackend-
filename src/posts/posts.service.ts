@@ -38,7 +38,7 @@ export class PostsService {
       console.log('Found existing posts', existingPost);
       throw new ConflictException('This post has been already uploaded');
     }
-    const res = await this.cloudinaryService.uploadWallpaper(image);
+    const res = await this.cloudinaryService.uploadPost(image);
     await this.prisma.posts.create({
       data: {
         imageHash: imageHash,
@@ -282,6 +282,9 @@ export class PostsService {
       where: {
         id: postId,
       },
+      select: {
+        postUrl: true,
+      },
     });
     if (!isPost) {
       throw new NotFoundException('Post not found');
@@ -314,7 +317,9 @@ export class PostsService {
       throw new NotFoundException('Owner not found');
     }
     const userDetails = await this.prisma.user.findUnique({
+    const userDetails = await this.prisma.user.findUnique({
       where: {
+        id: userId,
         id: userId,
       },
     });

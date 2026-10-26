@@ -13,15 +13,21 @@ import { jwtPayload } from './interfaces/jwtPayload';
 import { JwtService } from '@nestjs/jwt';
 import { checkPassword } from './helper/password.helper';
 import { UpdatePassword } from './dtos/update.password.dto';
-import { use } from 'passport';
+import { randomInt } from 'crypto';
+import { EmailService } from './emailService';
+import { ResetDto } from './dtos/reset.password.dto';
+import { VerifyOtpDto } from './dtos/verifyOtp.dto';
 
 @Injectable()
 export class AuthService {
   constructor(
     private prisma: PrismaService,
     private readonly jwtService: JwtService,
+    private emailService: EmailService,
   ) {}
+
   readonly CURRENT_PASSWORD_VERSION = 2;
+
   async register(registerDto: RegisterDto) {
     const { name, email, password } = registerDto;
     const exists = await this.prisma.user.findUnique({
@@ -50,7 +56,7 @@ export class AuthService {
         name,
         email,
         password: hashedPassword,
-        passwordVersion: 2,
+        passwordVersion: this.CURRENT_PASSWORD_VERSION,
       },
     });
     return {
@@ -74,6 +80,7 @@ export class AuthService {
     }
     const payload: jwtPayload = {
       userId: user.id,
+      sessionVersion: user.sessionVersion,
     };
     const accessToken = await this.jwtService.signAsync(payload, {
       secret: process.env.JWT_SECRET,
@@ -83,9 +90,13 @@ export class AuthService {
       secret: process.env.JWT_REFRESH_SECRET,
       expiresIn: '7d',
     });
+    const passwordUpdateToken = await this.jwtService.signAsync(payload, {
+      secret: process.env.JWT_PASSWORD_UPDATE_SECRET,
+      expiresIn: '5m',
+    });
     if (user.passwordVersion < this.CURRENT_PASSWORD_VERSION) {
       return {
-        refreshToken: refreshToken,
+        passwordUpdateToken: passwordUpdateToken,
         passwordChangeRequired: true,
       };
     }
@@ -119,6 +130,9 @@ export class AuthService {
     if (user.passwordVersion < this.CURRENT_PASSWORD_VERSION) {
       throw new ForbiddenException('Password change is required to continue');
     }
+    if (user.sessionVersion != payload.sessionVersion) {
+      throw new UnauthorizedException('Session expired, login again');
+    }
     const newAccessToken = await this.jwtService.signAsync(
       {
         userId: payload.userId,
@@ -134,15 +148,19 @@ export class AuthService {
   }
 
   async updatePassword(updatePasswordDto: UpdatePassword) {
-    const { currentPassword, newPassword, refreshToken } = updatePasswordDto;
+    const { currentPassword, newPassword, passwordUpdateToken } =
+      updatePasswordDto;
     let payload: jwtPayload;
     try {
-      payload = await this.jwtService.verifyAsync<jwtPayload>(refreshToken, {
-        secret: process.env.JWT_REFRESH_SECRET,
-      });
+      payload = await this.jwtService.verifyAsync<jwtPayload>(
+        passwordUpdateToken,
+        {
+          secret: process.env.JWT_PASSWORD_UPDATE_SECRET,
+        },
+      );
     } catch (e) {
       console.log(e);
-      throw new UnauthorizedException('Invalid refresh token');
+      throw new UnauthorizedException('Invalid password update token');
     }
     const user = await this.prisma.user.findUnique({
       where: {
@@ -168,6 +186,140 @@ export class AuthService {
       data: {
         password: hashPassword,
         passwordVersion: {
+          increment: 1,
+        },
+      },
+    });
+    return {
+      message: 'Password updated successfully',
+    };
+  }
+
+  async sendOtp(email: string) {
+    console.log('REACHED SEND OTP FUNCTION');
+    if (!email) {
+      throw new BadRequestException('Email is required to send OTP');
+    }
+    const user = await this.prisma.user.findUnique({
+      where: {
+        email: email,
+      },
+    });
+    if (!user) {
+      console.log('USER NOT FOUND');
+      return {
+        message: 'If account exists, OTP has been sent',
+      };
+    }
+    console.log('USER FOUND ', user);
+    await this.prisma.otp.deleteMany({
+      where: {
+        userId: user.id,
+      },
+    });
+    console.log('PREVIOUS OTP DELETED');
+    const otp = randomInt(100000, 1000000).toString();
+    const otpHash = await bcrypt.hash(otp, 10);
+    await this.prisma.otp.create({
+      data: {
+        otpHash: otpHash,
+        userId: user.id,
+        expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+      },
+    });
+    console.log('OTP SAVED');
+    console.log('SENDING OTP');
+    await this.emailService.sendOtp(email, otp);
+    console.log('OTP sent');
+    return {
+      message: 'If account exists, OTP has been sent',
+    };
+  }
+
+  async verifyOtp(verifyOtpDto: VerifyOtpDto) {
+    const { email, otp } = verifyOtpDto;
+    if (!email || !otp) {
+      throw new BadRequestException('Email and OTP cannot be empty');
+    }
+    const user = await this.prisma.user.findUnique({
+      where: {
+        email: email,
+      },
+    });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    if (!user) {
+      throw new BadRequestException('Invalid OTP');
+    }
+    const userOtpRecord = await this.prisma.otp.findFirst({
+      where: {
+        userId: user.id,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+    if (!userOtpRecord) {
+      throw new BadRequestException('Invalid OTP');
+    }
+    if (new Date() >= userOtpRecord.expiresAt) {
+      throw new BadRequestException('OTP has been expired');
+    }
+    const isOtpValid = await bcrypt.compare(otp, userOtpRecord.otpHash);
+    if (!isOtpValid) {
+      throw new BadRequestException('Invalid OTP');
+    }
+    const payload: jwtPayload = {
+      userId: user.id,
+      sessionVersion: user.sessionVersion,
+    };
+    const resetToken = await this.jwtService.signAsync(payload, {
+      secret: process.env.JWT_RESET_SECRET,
+      expiresIn: '5m',
+    });
+    await this.prisma.otp.delete({
+      where: {
+        id: userOtpRecord.id,
+      },
+    });
+    return {
+      message: 'OTP verified',
+      resetToken: resetToken,
+    };
+  }
+
+  async resetPassword(resetDto: ResetDto) {
+    const { resetToken, newPassword } = resetDto;
+    let payload: jwtPayload;
+    try {
+      payload = await this.jwtService.verifyAsync<jwtPayload>(resetToken, {
+        secret: process.env.JWT_RESET_SECRET,
+      });
+    } catch (error) {
+      console.log(error);
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+    const user = await this.prisma.user.findUnique({
+      where: {
+        id: payload.userId,
+      },
+    });
+    if (!user) {
+      throw new BadRequestException('Invalid reset token');
+    }
+    const passwordError = checkPassword(newPassword);
+    if (passwordError != null) {
+      throw new BadRequestException(passwordError);
+    }
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await this.prisma.user.update({
+      where: {
+        id: user.id,
+      },
+      data: {
+        password: hashedPassword,
+        sessionVersion: {
           increment: 1,
         },
       },
