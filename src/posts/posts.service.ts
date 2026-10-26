@@ -317,9 +317,7 @@ export class PostsService {
       throw new NotFoundException('Owner not found');
     }
     const userDetails = await this.prisma.user.findUnique({
-    const userDetails = await this.prisma.user.findUnique({
       where: {
-        id: userId,
         id: userId,
       },
     });
