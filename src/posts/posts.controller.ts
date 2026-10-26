@@ -136,4 +136,6 @@ export class PostsController {
   ) {
     return this.postService.deleteFcmToken(request.user.userId, fcmToken);
   }
+
+  
 }

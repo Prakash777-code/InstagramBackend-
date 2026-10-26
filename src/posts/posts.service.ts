@@ -65,7 +65,7 @@ export class PostsService {
     }
     const version =
       (await this.cacheManager.get<number>('all-posts-version')) ?? 1;
-    const key = `all-posts:v${version}:page:${page}:limit:${limit}:user:${userId}`;
+    const key = `all-posts:v${version}:page:${page}:limit:${limit}`;
     const cachedData = await this.cacheManager.get(key);
     const totalPosts = await this.prisma.posts.count();
     if (cachedData) {
@@ -98,30 +98,11 @@ export class PostsService {
         },
       },
     });
-    const posts = await Promise.all(
-      res.map(async (post) => {
-        const isLiked = await this.prisma.like.findUnique({
-          where: {
-            userId_postId: {
-              userId: userId,
-              postId: post.id,
-            },
-          },
-        });
-        return {
-          id: post.id,
-          userId: post.userId,
-          name: post.user.name,
-          postUrl: post.postUrl,
-          likes: post._count.likes,
-          isLiked: isLiked != null,
-        };
-      }),
-    );
-    await this.cacheManager.set(key, posts, 30 * 60 * 1000);
+
+    await this.cacheManager.set(key, res, 30 * 60 * 1000);
     return {
       source: 'Database',
-      data: posts,
+      data: res,
       totalPosts: totalPosts,
     };
   }
@@ -449,6 +430,8 @@ export class PostsService {
       message: 'FCM removed',
     };
   }
+
+ 
 
   async invalidatePostsCache() {
     const version =
