@@ -24,7 +24,7 @@ export class EmailService {
     try {
       await this.brevo.transactionalEmails.sendTransacEmail({
         sender: {
-          name: 'InstagramTeam',
+          name: 'Prakash',
           email: 'prakaxkumar@gmail.com',
         },
         to: [{ email }],
