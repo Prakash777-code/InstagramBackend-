@@ -33,7 +33,7 @@ export class EmailService {
             {
               From: {
                 Email: process.env.MAILJET_FROM_EMAIL!,
-                Name: 'InstagramTeam',
+                Name: 'Prakash',
               },
               To: [{ Email: email }],
               Subject: 'Password reset OTP',
