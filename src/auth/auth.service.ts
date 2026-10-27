@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  InternalServerErrorException,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -221,7 +222,7 @@ export class AuthService {
     console.log('PREVIOUS OTP DELETED');
     const otp = randomInt(100000, 1000000).toString();
     const otpHash = await bcrypt.hash(otp, 10);
-    await this.prisma.otp.create({
+    const savedOtp = await this.prisma.otp.create({
       data: {
         otpHash: otpHash,
         userId: user.id,
@@ -230,7 +231,19 @@ export class AuthService {
     });
     console.log('OTP SAVED');
     console.log('SENDING OTP');
-    await this.emailService.sendOtp(email, otp);
+    try {
+      await this.emailService.sendOtp(email, otp);
+    } catch (e) {
+      await this.prisma.otp.delete({
+        where: {
+          id: savedOtp.id,
+        },
+      });
+      console.error('Failed to send OTP:', e);
+      throw new InternalServerErrorException(
+        'Something went wrong. Please try again later.',
+      );
+    }
     console.log('OTP sent');
     return {
       message: 'If account exists, OTP has been sent',
