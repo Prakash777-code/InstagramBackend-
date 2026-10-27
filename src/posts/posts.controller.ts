@@ -54,7 +54,6 @@ export class PostsController {
     return this.postService.getPosts(
       Number(page),
       Number(limit),
-      request.user.userId,
     );
   }
 

@@ -56,7 +56,7 @@ export class PostsService {
     };
   }
 
-  async getPosts(page: number, limit: number, userId: number) {
+  async getPosts(page: number, limit: number) {
     if (page < 1 || limit < 1) {
       throw new BadRequestException('Page and limit must me greater than 0');
     }
@@ -432,6 +432,7 @@ export class PostsService {
   }
 
   async getLikedPostsIds(userId: number, postIds: number[]) {
+    console.log(postIds);
     const likedids = await this.prisma.like.findMany({
       where: {
         userId: userId,
@@ -443,6 +444,7 @@ export class PostsService {
         postId: true,
       },
     });
+    console.log(likedids);
     return {
       likedids: likedids.map((id) => id.postId),
     };
