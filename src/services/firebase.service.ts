@@ -22,22 +22,12 @@ export class FirebaseService {
     return getMessaging();
   }
 
-  async sendNotification(fcmToken: string, title: string, body: string) {
-    return this.getMessaging().send({
-      token: fcmToken,
-      notification: {
-        title,
-        body,
-      },
-    });
-  }
-
-  async sendMultipleNotifications(
+  async sendNotification(
     fcmTokens: string[],
     title: string,
     body: string,
   ) {
-    return this.getMessaging().sendEachForMulticast({
+    return await this.getMessaging().sendEachForMulticast({
       tokens: fcmTokens,
       notification: {
         title,

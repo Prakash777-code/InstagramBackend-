@@ -136,4 +136,64 @@ export class PostsController {
   ) {
     return this.postService.deleteFcmToken(request.user.userId, fcmToken);
   }
+
+  @Post('follow/:profileId')
+  @Throttle({
+    default: {
+      limit: 10,
+      ttl: 60000,
+    },
+  })
+  async follow(
+    @Req() req: AuthRequest,
+    @Param('profileId', ParseIntPipe) profileId: number,
+  ) {
+    return this.postService.follow(req.user.userId, profileId);
+  }
+
+  @Delete('unfollow/:profileId')
+  @Throttle({
+    default: {
+      limit: 10,
+      ttl: 60000,
+    },
+  })
+  async unFollow(
+    @Req() req: AuthRequest,
+    @Param('profileId', ParseIntPipe) profileId: number,
+  ) {
+    return this.postService.unFollow(req.user.userId, profileId);
+  }
+
+  @Get('user-feed')
+  @SkipThrottle()
+  async getUserFollowingPosts(
+    @Query('page') page: string,
+    @Query('limit') limit: string,
+    @Req() request: AuthRequest,
+  ) {
+    return this.postService.getUserFollowingPosts(
+      request.user.userId,
+      Number(page),
+      Number(limit),
+    );
+  }
+
+  @Post('liked')
+  @SkipThrottle()
+  async getUserLikedPostIds(
+    @Req() req: AuthRequest,
+    @Body('postIds') postIds: number[],
+  ) {
+    return this.postService.getUserLikedPostIds(req.user.userId, postIds);
+  }
+
+  @Post('following')
+  @SkipThrottle()
+  async getUserFollowingIds(
+    @Req() req: AuthRequest,
+    @Body('userIds') userIds: number[],
+  ) {
+    return this.postService.getUserFollowingIds(req.user.userId, userIds);
+  }
 }

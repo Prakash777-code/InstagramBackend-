@@ -12,6 +12,7 @@ import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import type { Cache } from 'cache-manager';
 import { FirebaseService } from '../services/firebase.service';
 import { Helper } from './utils/helper';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class PostsService {
@@ -49,6 +50,8 @@ export class PostsService {
     await this.cacheManager.del(`allPosts`);
     await this.cacheManager.del(`userPosts:${userId}`);
     await this.cacheManager.del(`userProfile:${userId}`);
+    await this.invalidateNormalFeedCache();
+    await this.invalidateUserFeedCache();
     return {
       message: 'Post uploaded',
       postUrl: res.secure_url,
@@ -96,6 +99,14 @@ export class PostsService {
             },
           },
         });
+        const isFollowing = await this.prisma.follow.findUnique({
+          where: {
+            followerId_followingId: {
+              followingId: post.userId,
+              followerId: userId,
+            },
+          },
+        });
         return {
           id: post.id,
           userId: post.userId,
@@ -103,6 +114,7 @@ export class PostsService {
           postUrl: post.postUrl,
           likes: post._count.likes,
           isLiked: isLiked != null,
+          isFollowing: isFollowing != null,
         };
       }),
     );
@@ -113,6 +125,7 @@ export class PostsService {
   }
 
   async getUserProfile(userId: number) {
+    console.log('REACHED GET PROOFILE', userId);
     const key = `userProfile:${userId}`;
     const cachedData = await this.cacheManager.get(key);
     if (cachedData) {
@@ -143,9 +156,21 @@ export class PostsService {
     if (!user) {
       throw new NotFoundException('User not found');
     }
+    const followers = await this.prisma.follow.count({
+      where: {
+        followingId: userId,
+      },
+    });
+    const following = await this.prisma.follow.count({
+      where: {
+        followerId: userId,
+      },
+    });
     const profile = {
       name: user.name,
       posts: user.posts,
+      followers: followers,
+      following: following,
     };
     await this.cacheManager.set(key, profile);
     return {
@@ -172,6 +197,8 @@ export class PostsService {
     });
     await this.cacheManager.del(`userPosts:${userId}`);
     await this.cacheManager.del(`userProfile:${userId}`);
+    await this.invalidateNormalFeedCache();
+    await this.invalidateUserFeedCache();
     return {
       message: 'Post deleted',
     };
@@ -207,6 +234,8 @@ export class PostsService {
         postId: postId,
       },
     });
+    await this.invalidateNormalFeedCache();
+    await this.invalidateUserFeedCache();
     const userDetails = await this.prisma.user.findUnique({
       where: {
         id: userId,
@@ -221,6 +250,7 @@ export class PostsService {
           postId: postId,
           imageUrl: isPost.postUrl,
           userId: isPost.userId,
+          senderId: userId,
           userName: userDetails.name,
         },
       });
@@ -241,12 +271,15 @@ export class PostsService {
           minute: '2-digit',
         });
         const formattedTime = this.helper.getTimeAgo(new Date());
-        const result = await this.firebaseService.sendMultipleNotifications(
-          deviceTokens,
-          'New Like',
-          `${userDetails.name} liked your post at ${time}`,
-        );
-        console.log('NOTIFICATION SENDED', result);
+        try {
+          const result = await this.firebaseService.sendNotification(
+            deviceTokens,
+            'New Like',
+            `${userDetails.name} liked your post at ${time}`,
+          );
+        } catch (e) {
+          console.log('ERROR WHILE SENDING LIKE NOTIFICATION ', e);
+        }
       }
       console.log(res);
     }
@@ -292,6 +325,8 @@ export class PostsService {
         },
       },
     });
+    await this.invalidateNormalFeedCache();
+    await this.invalidateUserFeedCache();
     const postOwner = await this.prisma.posts.findUnique({
       where: {
         id: postId,
@@ -333,10 +368,26 @@ export class PostsService {
     }
     const skip = (page - 1) * limit;
     const res = await this.prisma.notification.findMany({
-      skip: skip,
+      skip,
       take: limit,
       where: {
-        userId: userId,
+        userId,
+      },
+      select: {
+        id: true,
+        userId: true,
+        senderId: true,
+        postId: true,
+        imageUrl: true,
+        userName: true,
+        notificationType: true,
+        seen: true,
+        created_at: true,
+        post: {
+          select: {
+            userId: true,
+          },
+        },
       },
       orderBy: {
         created_at: 'desc',
@@ -351,13 +402,24 @@ export class PostsService {
         seen: true,
       },
     });
+    await this.invalidateNormalFeedCache();
+    await this.invalidateUserFeedCache();
     const totalNotifications = await this.prisma.notification.count({
       where: {
         userId: userId,
       },
     });
+    const followingIds = await this.prisma.follow.findMany({
+      where: {
+        followerId: userId,
+      },
+      select: {
+        followingId: true,
+      },
+    });
     return {
       data: res,
+      followingIds: followingIds,
       totalNotifications: totalNotifications,
     };
   }
@@ -408,5 +470,307 @@ export class PostsService {
     return {
       message: 'FCM removed',
     };
+  }
+
+  async follow(userId: number, profileId: number) {
+    if (!profileId) {
+      throw new BadRequestException('Profile ID cannot be empty');
+    }
+    const user = await this.prisma.user.findUnique({
+      where: {
+        id: profileId,
+      },
+    });
+    if (!user) {
+      throw new NotFoundException('Profile not found');
+    }
+    const sender = await this.prisma.user.findUnique({
+      where: {
+        id: userId,
+      },
+    });
+    console.log(user.name, 'GOT FOLLOWED BY ', userId);
+    if (userId === profileId) {
+      return;
+    }
+    try {
+      const res = await this.prisma.follow.create({
+        data: {
+          followerId: userId,
+          followingId: profileId,
+        },
+      });
+      await this.invalidateNormalFeedCache();
+      await this.invalidateUserFeedCache();
+      await this.cacheManager.del(`userProfile:${userId}`);
+      if (userId !== profileId) {
+        await this.prisma.notification.create({
+          data: {
+            userId: profileId,
+            senderId: userId,
+            userName: sender!.name,
+            notificationType: 'FOLLOW',
+          },
+        });
+        const tokens = await this.prisma.deviceToken.findMany({
+          where: {
+            userId: profileId,
+          },
+          select: {
+            fcmToken: true,
+          },
+        });
+        const fcmTokens = tokens.map((token) => token.fcmToken);
+        if (fcmTokens.length > 0) {
+          const time = new Date().toLocaleTimeString('en-IN', {
+            timeZone: 'Asia/Kolkata',
+            hour: 'numeric',
+            minute: '2-digit',
+          });
+          try {
+            await this.firebaseService.sendNotification(
+              fcmTokens,
+              'New follower',
+              `${sender!.name} started following you  ${time}`,
+            );
+          } catch (e) {
+            console.log('ERROR WHILE SENDING FOLLOW NOTIFICATION ', e);
+          }
+        }
+      }
+      return {
+        success: true,
+        message: 'Followed successfully',
+      };
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new ConflictException('You already follow this profile');
+      }
+    }
+  }
+
+  async unFollow(userId: number, profileId: number) {
+    if (!profileId) {
+      throw new BadRequestException('Profile ID cannot be empty');
+    }
+    const user = await this.prisma.user.findUnique({
+      where: {
+        id: profileId,
+      },
+    });
+    if (!user) {
+      throw new NotFoundException('Profile not found');
+    }
+    const existingFollow = await this.prisma.follow.findFirst({
+      where: {
+        followerId: userId,
+        followingId: profileId,
+      },
+    });
+
+    console.log('UNFOLLOW USER:', userId);
+    console.log('UNFOLLOW PROFILE:', profileId);
+    console.log('EXISTING FOLLOW:', existingFollow);
+    const deleteRecord = await this.prisma.follow.deleteMany({
+      where: {
+        followingId: profileId,
+        followerId: userId,
+      },
+    });
+    await this.cacheManager.del(`userProfile:${userId}`);
+    if (deleteRecord.count === 0) {
+      throw new NotFoundException('You do not follow this profile');
+    }
+    const notificationRecord = await this.prisma.notification.deleteMany({
+      where: {
+        userId: profileId,
+        senderId: userId,
+        notificationType: 'FOLLOW',
+      },
+    });
+    await this.invalidateNormalFeedCache();
+    await this.invalidateUserFeedCache();
+    console.log('NotifiationRecord', notificationRecord);
+    return {
+      success: true,
+      message: 'Unfollowed successfully',
+    };
+  }
+
+  async getUserFollowingPosts(userId: number, page: number, limit: number) {
+    if (!page || !limit) {
+      throw new BadRequestException('Page and limit are required');
+    }
+    if (page < 1 || limit < 1) {
+      throw new BadRequestException('Page and limit cannot be less than 1');
+    }
+    console.log('GETTING POSTS FOR ', userId);
+    const skip = (page - 1) * limit;
+    const followingIds = await this.prisma.follow.findMany({
+      where: {
+        followerId: userId,
+      },
+      select: {
+        followingId: true,
+      },
+    });
+    console.log(
+      `${userId} FOLLOWING IDS :${followingIds.map((id) => id.followingId)}`,
+    );
+    const totalPosts = await this.prisma.posts.count({
+      where: {
+        userId: { in: followingIds.map((id) => id.followingId) },
+      },
+    });
+    const userFeedCacheVersion =
+      (await this.cacheManager.get<number>(`user-feed-cache`)) ?? 1;
+    const userFeedKey = `userId${userId}:page:${page}:limit${limit}v:v${userFeedCacheVersion}`;
+    const userFeedCacheData = await this.cacheManager.get(userFeedKey);
+    if (userFeedCacheData) {
+      return {
+        success: true,
+        source: 'Cache',
+        feedType: 'User feed',
+        userFeed: userFeedCacheData,
+        totalPosts: totalPosts,
+      };
+    }
+    const userFeed = await this.prisma.posts.findMany({
+      where: {
+        userId: {
+          in: followingIds.map((id) => id.followingId),
+        },
+      },
+      skip: skip,
+      take: limit,
+      select: {
+        id: true,
+        userId: true,
+        postUrl: true,
+        user: {
+          select: {
+            name: true,
+          },
+        },
+        _count: {
+          select: {
+            likes: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+    if (followingIds.length === 0 || userFeed.length === 0) {
+      console.log('GETTING NORMAL FEED');
+      const normalFeedVersion =
+        (await this.cacheManager.get<number>(`normal-feed-cache`)) ?? 1;
+      const normalFeedKey = `userId${userId}:page:${page}:limit${limit}:v${normalFeedVersion}`;
+      const totalPosts = await this.prisma.posts.count();
+      const normalFeedCachedData = await this.cacheManager.get(normalFeedKey);
+      if (normalFeedCachedData) {
+        return {
+          success: true,
+          source: 'Cache',
+          feedType: 'Normal',
+          userFeed: normalFeedCachedData,
+          totalPosts: totalPosts,
+        };
+      }
+      const normalFeed = await this.prisma.posts.findMany({
+        skip: skip,
+        take: limit,
+        select: {
+          id: true,
+          userId: true,
+          postUrl: true,
+          user: {
+            select: {
+              name: true,
+            },
+          },
+          _count: {
+            select: {
+              likes: true,
+            },
+          },
+        },
+      });
+      await this.cacheManager.set(normalFeedKey, normalFeed);
+      return {
+        success: true,
+        source: 'Database',
+        feedType: 'Normal',
+        userFeed: normalFeed,
+        totalPosts: totalPosts,
+      };
+    } else {
+      console.log('GETTING USER FEED');
+      await this.cacheManager.set(userFeedKey, userFeed);
+      return {
+        success: true,
+        source: 'Database',
+        feedType: 'User feed',
+        userFeed: userFeed,
+        totalPosts: totalPosts,
+      };
+    }
+  }
+
+  async getUserLikedPostIds(userId: number, postIds: number[]) {
+    if (!postIds) {
+      throw new BadRequestException('Post IDs are required');
+    }
+    const likedIds = await this.prisma.like.findMany({
+      where: {
+        userId: userId,
+        postId: {
+          in: postIds,
+        },
+      },
+      select: {
+        postId: true,
+      },
+    });
+    return {
+      likedIds: likedIds.map((id) => id.postId),
+    };
+  }
+
+  async getUserFollowingIds(userId: number, userIds: number[]) {
+    if (!userIds || userIds.length == 0) {
+      throw new BadRequestException('User IDs are required');
+    }
+    const followingIds = await this.prisma.follow.findMany({
+      where: {
+        followerId: userId,
+        followingId: {
+          in: userIds,
+        },
+      },
+      select: {
+        followingId: true,
+      },
+    });
+    return {
+      success: true,
+      followingIds: followingIds.map((id) => id.followingId),
+    };
+  }
+
+  async invalidateNormalFeedCache() {
+    const version =
+      (await this.cacheManager.get<number>(`normal-feed-cache`)) ?? 1;
+    await this.cacheManager.set(`normal-feed-cache`, version + 1);
+  }
+
+  async invalidateUserFeedCache() {
+    const version =
+      (await this.cacheManager.get<number>(`user-feed-cache`)) ?? 1;
+    await this.cacheManager.set(`user-feed-cache`, version + 1);
   }
 }

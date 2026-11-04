@@ -14,70 +14,91 @@ datasource db {
 }
 
 model User {
-  id Int @id @default(autoincrement())
-  name String  @unique
-  email String @unique
-  password String
-  passwordVersion Int @default(1)
-  sessionVersion Int @default(1)
-  created_at DateTime @default(now())
-  posts Posts[]
-  likes Like[]
-  notification Notification[]
-  deviceTokens deviceToken[]
-  otp Otp []
+  id              Int            @id @default(autoincrement())
+  name            String         @unique
+  email           String         @unique
+  password        String
+  passwordVersion Int            @default(1)
+  sessionVersion  Int            @default(1)
+  created_at      DateTime       @default(now())
+  posts           Posts[]
+  likes           Like[]
+  deviceTokens    deviceToken[]
+  otp             Otp[]
+  followers       Follow[]       @relation("Followers")
+  following       Follow[]       @relation("Following")
+  receivedNotifications Notification[] @relation("ReceivedNotifications")
+  sentNotifications     Notification[] @relation("SentNotifications")
 }
 
-model Posts{
-  id Int @id @default(autoincrement())
-  userId Int
-  postUrl String @unique
-  imageHash String   @unique
-  createdAt DateTime @default(now())
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  likes Like[]
+model Posts {
+  id           Int            @id @default(autoincrement())
+  userId       Int
+  postUrl      String         @unique
+  imageHash    String         @unique
+  createdAt    DateTime       @default(now())
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  likes        Like[]
   notification Notification[]
 }
 
-model Like{
-  id Int @id @default(autoincrement())
-  userId Int
-  postId Int
+model Like {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  postId     Int
   created_at DateTime @default(now())
 
-  user User @relation(fields:[userId],references:[id], onDelete:Cascade)
-post Posts @relation(fields: [postId], references: [id], onDelete: Cascade)
-  @@unique([userId,postId])
+  user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post Posts @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postId])
 }
 
 model Notification {
-  id Int @id @default(autoincrement())
-  userId Int 
-  postId Int 
-  imageUrl String
-  userName String 
-  seen Boolean @default(false)
-  created_at DateTime @default(now())
+  id               Int      @id @default(autoincrement())
+  userId           Int
+  senderId         Int?
+  postId           Int?
+  imageUrl         String?
+  userName         String?
+  notificationType NOTIFICATION_TYPE @default(LIKE)
+  seen             Boolean  @default(false)
+  created_at       DateTime @default(now())
 
-  user User @relation(fields:[userId],references:[id], onDelete:Cascade)
-  post Posts @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user   User  @relation("ReceivedNotifications", fields: [userId], references: [id], onDelete: Cascade)
+  sender User? @relation("SentNotifications", fields: [senderId], references: [id], onDelete: Cascade)
+  post   Posts? @relation(fields: [postId], references: [id], onDelete: Cascade)
 }
 
 model deviceToken {
-  id Int @id @default(autoincrement())
-  userId Int
-  fcmToken String @unique
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  fcmToken   String   @unique
   created_at DateTime @default(now())
-  user User @relation(fields:[userId],references:[id], onDelete:Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Otp {
-  id Int @id @default(autoincrement())
-  otpHash String 
-  userId Int 
+  id        Int      @id @default(autoincrement())
+  otpHash   String
+  userId    Int
   expiresAt DateTime
   createdAt DateTime @default(now())
-  user User @relation(fields:[userId],references:[id], onDelete:Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+model Follow {
+  id          Int      @id @default(autoincrement())
+  followerId  Int
+  followingId Int
+  createdAt   DateTime @default(now())
+  follower    User     @relation("Followers", fields: [followerId], references: [id], onDelete: Cascade)
+  following   User     @relation("Following", fields: [followingId], references: [id], onDelete: Cascade)
 
+  @@unique([followerId, followingId])
+}
+
+enum NOTIFICATION_TYPE {
+  LIKE 
+  FOLLOW
+}
