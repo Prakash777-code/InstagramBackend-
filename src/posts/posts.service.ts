@@ -569,7 +569,6 @@ export class PostsService {
         followingId: profileId,
       },
     });
-
     console.log('UNFOLLOW USER:', userId);
     console.log('UNFOLLOW PROFILE:', profileId);
     console.log('EXISTING FOLLOW:', existingFollow);
@@ -697,6 +696,9 @@ export class PostsService {
               likes: true,
             },
           },
+        },
+        orderBy: {
+          createdAt: 'desc',
         },
       });
       await this.cacheManager.set(normalFeedKey, normalFeed);
