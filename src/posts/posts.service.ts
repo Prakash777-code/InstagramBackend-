@@ -195,7 +195,6 @@ export class PostsService {
         id: postId,
       },
     });
-    await this.cacheManager.del(`userPosts:${userId}`);
     await this.cacheManager.del(`userProfile:${userId}`);
     await this.invalidateNormalFeedCache();
     await this.invalidateUserFeedCache();
