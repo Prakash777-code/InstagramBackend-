@@ -10,8 +10,13 @@ import { Helper } from './utils/helper';
 @Module({
   providers: [PostsService, FirebaseService, Helper],
   controllers: [PostsController],
-  imports:[PrismaModule,CloudinaryModule,JwtModule.register({
-    secret: process.env.JWT_SECRET,
-  })]
+  imports: [
+    PrismaModule,
+    CloudinaryModule,
+    JwtModule.register({
+      secret: process.env.JWT_SECRET,
+    }),
+  ],
+  exports: [PostsService],
 })
 export class PostsModule {}

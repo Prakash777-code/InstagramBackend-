@@ -17,6 +17,7 @@ import type { AuthRequest } from '../auth/interfaces/authRequest';
 import { AuthGuard } from '@nestjs/passport';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { SkipThrottle, Throttle } from '@nestjs/throttler';
+import { SearchUserDto } from './dtos/searchUser.dto';
 
 @Controller('posts')
 @UseGuards(AuthGuard('jwt'))
@@ -195,5 +196,20 @@ export class PostsController {
     @Body('userIds') userIds: number[],
   ) {
     return this.postService.getUserFollowingIds(req.user.userId, userIds);
+  }
+
+  @Get('profile/:id')
+  @SkipThrottle()
+  async getProfileById(
+    @Req() req: AuthRequest,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.postService.getProfileById(req.user.userId, id);
+  }
+
+  @Get('search-user')
+  @SkipThrottle()
+  async searchUser(@Query() searchUserDto: SearchUserDto) {
+    return this.postService.searchUser(searchUserDto);
   }
 }

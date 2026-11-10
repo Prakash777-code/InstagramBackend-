@@ -18,12 +18,15 @@ import { randomInt } from 'crypto';
 import { EmailService } from './emailService';
 import { ResetDto } from './dtos/reset.password.dto';
 import { VerifyOtpDto } from './dtos/verifyOtp.dto';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { PostsService } from '../posts/posts.service';
 
 @Injectable()
 export class AuthService {
   constructor(
     private prisma: PrismaService,
     private readonly jwtService: JwtService,
+    private postService: PostsService,
     private emailService: EmailService,
   ) {}
 
@@ -60,6 +63,7 @@ export class AuthService {
         passwordVersion: this.CURRENT_PASSWORD_VERSION,
       },
     });
+    await this.postService.invalidateSearchUserCache();
     return {
       message: 'User registered',
     };

@@ -13,6 +13,7 @@ import type { Cache } from 'cache-manager';
 import { FirebaseService } from '../services/firebase.service';
 import { Helper } from './utils/helper';
 import { Prisma } from '@prisma/client';
+import { SearchUserDto } from './dtos/searchUser.dto';
 
 @Injectable()
 export class PostsService {
@@ -763,6 +764,115 @@ export class PostsService {
     };
   }
 
+  async getProfileById(userId: number, profileId: number) {
+    if (!profileId) {
+      throw new BadRequestException('Profile if is required');
+    }
+    const isUser = await this.prisma.user.findUnique({
+      where: { id: profileId },
+    });
+    if (!isUser) {
+      throw new NotFoundException('User not found');
+    }
+    const connection = await this.prisma.user.findUnique({
+      where: { id: profileId },
+      select: {
+        _count: {
+          select: {
+            followers: true,
+            following: true,
+          },
+        },
+      },
+    });
+    const isFollowing =
+      (await this.prisma.follow.findUnique({
+        where: {
+          followerId_followingId: {
+            followerId: userId,
+            followingId: profileId,
+          },
+        },
+      })) !== null;
+    const profile = await this.prisma.posts.findMany({
+      where: {
+        userId: profileId,
+      },
+      select: {
+        postUrl: true,
+      },
+    });
+    return {
+      success: true,
+      name: isUser.name,
+      userId: isUser.id,
+      profile: profile,
+      connections: connection,
+      isFollowing: isFollowing,
+    };
+  }
+
+  async searchUser(searchUserDto: SearchUserDto) {
+    const { query, page, limit } = searchUserDto;
+    if (!query || !page || !limit) {
+      throw new BadRequestException('Query, page and limit are required');
+    }
+    if (page < 1 || limit < 1) {
+      throw new BadRequestException('Page and limit cannot be less than 1');
+    }
+    console.log(searchUserDto);
+    const skip = (page - 1) * limit;
+    const version =
+      (await this.cacheManager.get<number>('search-user-cache')) ?? 1;
+    const key = `v:${version}:query:${query}:page:${page}:limit:${limit}`;
+    const cachedData = await this.cacheManager.get<{
+      users: { id: number; name: string }[];
+      totalResult: number;
+    }>(key);
+    if (cachedData) {
+      return {
+        success: true,
+        source: 'cache',
+        users: cachedData.users,
+        totalResult: cachedData.totalResult,
+      };
+    }
+    const [users, totalResult] = await Promise.all([
+      this.prisma.user.findMany({
+        take: Number(limit),
+        skip,
+        where: {
+          name: {
+            contains: query,
+            mode: 'insensitive',
+          },
+        },
+        select: {
+          id: true,
+          name: true,
+        },
+        orderBy: {
+          name: 'asc',
+        },
+      }),
+      this.prisma.user.count({
+        where: {
+          name: {
+            contains: query,
+            mode: 'insensitive',
+          },
+        },
+      }),
+    ]);
+    const result = { users, totalResult };
+    await this.cacheManager.set(key, result);
+    return {
+      source: 'Database',
+      success: true,
+      ...result,
+    };
+  }
+
   async invalidateNormalFeedCache() {
     const version =
       (await this.cacheManager.get<number>(`normal-feed-cache`)) ?? 1;
@@ -773,5 +883,11 @@ export class PostsService {
     const version =
       (await this.cacheManager.get<number>(`user-feed-cache`)) ?? 1;
     await this.cacheManager.set(`user-feed-cache`, version + 1);
+  }
+
+  async invalidateSearchUserCache() {
+    const version =
+      (await this.cacheManager.get<number>('search-user-cache')) ?? 1;
+    await this.cacheManager.set('search-user-cache', version + 1);
   }
 }
