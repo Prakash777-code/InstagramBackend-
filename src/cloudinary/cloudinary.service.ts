@@ -11,9 +11,7 @@ export class CloudinaryService {
     });
   }
 
-  async uploadPost(
-    file: Express.Multer.File,
-  ): Promise<UploadApiResponse> {
+  async uploadPost(file: Express.Multer.File): Promise<UploadApiResponse> {
     return new Promise((resolve, reject) => {
       const uploadStream = cloudinary.uploader.upload_stream(
         {
@@ -37,5 +35,8 @@ export class CloudinaryService {
       );
       uploadStream.end(file.buffer);
     });
+  }
+  async deleteImage(publicId: string) {
+    return await cloudinary.uploader.destroy(publicId);
   }
 }

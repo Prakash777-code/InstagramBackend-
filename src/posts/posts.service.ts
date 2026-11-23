@@ -3,6 +3,7 @@ import {
   ConflictException,
   Inject,
   Injectable,
+  InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
@@ -40,23 +41,30 @@ export class PostsService {
       console.log('Found existing posts', existingPost);
       throw new ConflictException('This post has been already uploaded');
     }
-    const res = await this.cloudinaryService.uploadPost(image);
-    await this.prisma.posts.create({
-      data: {
-        imageHash: imageHash,
-        userId: userId,
+    try {
+      const res = await this.cloudinaryService.uploadPost(image);
+      await this.prisma.posts.create({
+        data: {
+          imageHash: imageHash,
+          userId: userId,
+          postUrl: res.secure_url,
+        },
+      });
+      await this.cacheManager.del(`allPosts`);
+      await this.cacheManager.del(`userPosts:${userId}`);
+      await this.cacheManager.del(`userProfile:${userId}`);
+      await this.invalidateNormalFeedCache();
+      await this.invalidateUserFeedCache();
+      return {
+        message: 'Post uploaded',
         postUrl: res.secure_url,
-      },
-    });
-    await this.cacheManager.del(`allPosts`);
-    await this.cacheManager.del(`userPosts:${userId}`);
-    await this.cacheManager.del(`userProfile:${userId}`);
-    await this.invalidateNormalFeedCache();
-    await this.invalidateUserFeedCache();
-    return {
-      message: 'Post uploaded',
-      postUrl: res.secure_url,
-    };
+      };
+    } catch (error) {
+      console.error('Post upload failed:', error);
+      throw new InternalServerErrorException(
+        'Failed to upload post, please try again',
+      );
+    }
   }
 
   async getPosts(page: number, limit: number, userId: number) {
@@ -473,6 +481,7 @@ export class PostsService {
   }
 
   async follow(userId: number, profileId: number) {
+    console.log('FOLLOW HIT');
     if (!profileId) {
       throw new BadRequestException('Profile ID cannot be empty');
     }
@@ -553,6 +562,7 @@ export class PostsService {
   }
 
   async unFollow(userId: number, profileId: number) {
+    console.log('UNFOLLOW HIT');
     if (!profileId) {
       throw new BadRequestException('Profile ID cannot be empty');
     }
@@ -766,7 +776,7 @@ export class PostsService {
 
   async getProfileById(userId: number, profileId: number) {
     if (!profileId) {
-      throw new BadRequestException('Profile if is required');
+      throw new BadRequestException('Profile ID is required');
     }
     const isUser = await this.prisma.user.findUnique({
       where: { id: profileId },
