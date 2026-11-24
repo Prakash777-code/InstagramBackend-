@@ -55,6 +55,7 @@ export class PostsService {
       await this.cacheManager.del(`userProfile:${userId}`);
       await this.invalidateNormalFeedCache();
       await this.invalidateUserFeedCache();
+      await this.invalidateUserPostsCache();
       return {
         message: 'Post uploaded',
         postUrl: res.secure_url,
@@ -207,6 +208,7 @@ export class PostsService {
     await this.cacheManager.del(`userProfile:${userId}`);
     await this.invalidateNormalFeedCache();
     await this.invalidateUserFeedCache();
+    await this.invalidateUserPostsCache();
     return {
       message: 'Post deleted',
     };
@@ -883,6 +885,53 @@ export class PostsService {
     };
   }
 
+  async getUerPosts(userId: number, page: number, limit: number) {
+    const isUser = await this.prisma.user.findUnique({
+      where: {
+        id: userId,
+      },
+    });
+    if (!isUser) {
+      throw new NotFoundException('User not found');
+    }
+    const skip = (page - 1) * limit;
+    const version =
+      (await this.cacheManager.get<number>('user-posts-cache')) ?? 1;
+    const key = `userId:${userId}:posts:v:${version}page:${page}:limit:${limit}`;
+    const cachedData = await this.cacheManager.get(key);
+    const totalPosts = await this.prisma.posts.count({
+      where: { userId: userId },
+    });
+    if (cachedData) {
+      return {
+        source: 'cache',
+        posts: cachedData,
+        totalPosts: totalPosts,
+      };
+    }
+    const posts = await this.prisma.posts.findMany({
+      take: limit,
+      skip: skip,
+      where: {
+        userId: userId,
+      },
+      select: {
+        id: true,
+        postUrl: true,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+    await this.cacheManager.set(key, posts);
+    return {
+      source: 'Database',
+      success: true,
+      posts: posts,
+      totalPosts: totalPosts,
+    };
+  }
+
   async invalidateNormalFeedCache() {
     const version =
       (await this.cacheManager.get<number>(`normal-feed-cache`)) ?? 1;
@@ -899,5 +948,11 @@ export class PostsService {
     const version =
       (await this.cacheManager.get<number>('search-user-cache')) ?? 1;
     await this.cacheManager.set('search-user-cache', version + 1);
+  }
+
+  async invalidateUserPostsCache() {
+    const version =
+      (await this.cacheManager.get<number>('user-posts-cache')) ?? 1;
+    await this.cacheManager.set('user-posts-cache', version + 1);
   }
 }

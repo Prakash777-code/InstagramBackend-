@@ -212,4 +212,18 @@ export class PostsController {
   async searchUser(@Query() searchUserDto: SearchUserDto) {
     return this.postService.searchUser(searchUserDto);
   }
+
+  @Get('user-posts')
+  @SkipThrottle()
+  async getUserPosts(
+    @Req() req: AuthRequest,
+    @Query('page') page: number,
+    @Query('limit') limit: number,
+  ) {
+    return this.postService.getUerPosts(
+      req.user.userId,
+      Number(page),
+      Number(limit),
+    );
+  }
 }
