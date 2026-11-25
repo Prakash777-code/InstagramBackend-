@@ -15,6 +15,7 @@ import { FirebaseService } from '../services/firebase.service';
 import { Helper } from './utils/helper';
 import { Prisma } from '@prisma/client';
 import { SearchUserDto } from './dtos/searchUser.dto';
+import { v2 as cloudinary } from 'cloudinary';
 
 @Injectable()
 export class PostsService {
@@ -41,31 +42,44 @@ export class PostsService {
       console.log('Found existing posts', existingPost);
       throw new ConflictException('This post has been already uploaded');
     }
+    let public_id: string | null = null;
+    let imageUrl: string;
     try {
       const res = await this.cloudinaryService.uploadPost(image);
-      await this.prisma.posts.create({
+      public_id = res.public_id;
+      imageUrl = res.secure_url;
+      const post = await this.prisma.posts.create({
         data: {
           imageHash: imageHash,
           userId: userId,
           postUrl: res.secure_url,
+          publicId: res.public_id,
         },
       });
-      await this.cacheManager.del(`allPosts`);
-      await this.cacheManager.del(`userPosts:${userId}`);
-      await this.cacheManager.del(`userProfile:${userId}`);
-      await this.invalidateNormalFeedCache();
-      await this.invalidateUserFeedCache();
-      await this.invalidateUserPostsCache();
-      return {
-        message: 'Post uploaded',
-        postUrl: res.secure_url,
-      };
+      console.log('NEW POST', post);
     } catch (error) {
+      if (public_id) {
+        try {
+          const del = await cloudinary.uploader.destroy(public_id);
+        } catch (deleteError) {
+          console.log('COUDINARY DELETE ERROR ', deleteError);
+        }
+      }
       console.error('Post upload failed:', error);
       throw new InternalServerErrorException(
         'Failed to upload post, please try again',
       );
     }
+    await this.cacheManager.del(`allPosts`);
+    await this.cacheManager.del(`userPosts:${userId}`);
+    await this.cacheManager.del(`userProfile:${userId}`);
+    await this.invalidateNormalFeedCache();
+    await this.invalidateUserFeedCache();
+    await this.invalidateUserPostsCache();
+    return {
+      message: 'Post uploaded',
+      postUrl: imageUrl,
+    };
   }
 
   async getPosts(page: number, limit: number, userId: number) {
@@ -199,6 +213,15 @@ export class PostsService {
     if (!postExist) {
       throw new NotFoundException('Post not found');
     }
+    const public_id = postExist.publicId;
+    if (public_id) {
+      try {
+        const res = await cloudinary.uploader.destroy(public_id);
+        console.log('CLOUDINARY DELETE RESULT', res);
+      } catch (e) {
+        console.log('CLOUDINARY DELETION ERROR ', e);
+      }
+    }
     await this.prisma.posts.delete({
       where: {
         userId: userId,
@@ -210,6 +233,7 @@ export class PostsService {
     await this.invalidateUserFeedCache();
     await this.invalidateUserPostsCache();
     return {
+      success: true,
       message: 'Post deleted',
     };
   }

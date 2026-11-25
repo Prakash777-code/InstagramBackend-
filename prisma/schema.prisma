@@ -33,6 +33,7 @@ model User {
 
 model Posts {
   id           Int            @id @default(autoincrement())
+  publicId     String?
   userId       Int
   postUrl      String         @unique
   imageHash    String         @unique
